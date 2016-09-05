@@ -1,0 +1,43 @@
+apply plugin: 'java'
+
+sourceCompatibility = gradleProperties_compileJavaVersion
+[compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
+
+// NetBeans will automatically add "run" and "debug" tasks relying on the
+// "mainClass" property. You may however define the property prior executing
+// tasks by passing a "-PmainClass=<QUALIFIED_CLASS_NAME>" argument.
+//
+// Note however, that you may define your own "run" and "debug" task if you
+// prefer. In this case NetBeans will not add these tasks but you may rely on
+// your own implementation.
+if (!hasProperty('mainClass')) {
+    ext.mainClass = ''
+}
+
+repositories {
+    def internalRepository = gradleProperties_releaseArtifactoryRepository
+    
+    maven {
+        url internalRepository
+
+        credentials {
+            username gradleProperties_user
+            password gradleProperties_password
+        }
+    }
+}
+
+dependencies {
+            
+    runtime "com.google.code.gson:gson:$gradleProperties_gsonVersion",
+            "log4j:log4j:$gradleProperties_log4jVersion",
+            "com.google.zxing:core:3.2.1",
+            "com.sun.xml.security:xml-security-impl:1.0"
+    
+    
+    compile "com.google.code.gson:gson:$gradleProperties_gsonVersion",    
+            "log4j:log4j:$gradleProperties_log4jVersion",
+            "com.google.zxing:core:3.2.1",
+            "com.sun.xml.security:xml-security-impl:1.0",
+            "org.json:json:20140107"
+}
