@@ -42,6 +42,10 @@ public class EncryptionUtils {
         }
         return decipher.doFinal(content);
     }   
+    
+    public String FixBadRequestTransportChar(String base64Content){
+        return base64Content.replace(' ', '+');
+    }
        
     /*public KeyPair generateKeyPair(String keyAlgorithm, int keySize) throws NoSuchAlgorithmException{
         final KeyPairGenerator keyGen = KeyPairGenerator.getInstance(keyAlgorithm);

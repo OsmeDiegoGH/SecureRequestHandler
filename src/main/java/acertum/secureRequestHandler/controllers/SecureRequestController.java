@@ -1,10 +1,9 @@
 package acertum.secureRequestHandler.controllers;
 
-import acertum.secureRequestHandler.utils.JSONUtils;
+import acertum.secureRequestHandler.entities.RequestResponse;
 import acertum.secureRequestHandler.utils.RESTServiceUtils;
 import com.sun.org.apache.xml.internal.security.exceptions.Base64DecodingException;
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -12,81 +11,56 @@ import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 
 public class SecureRequestController {
-    
-    private final JSONUtils jsonutils;
-    public enum RESPONSE_CODE{
-        SUCCESS,
-        ERROR
+   
+    private final EncryptionController encryptionController;
+    public enum REQUEST_MODE {
+        CLIENT,
+        SERVICE
     }
     
-    public class Response{
-        private RESPONSE_CODE code;
-        private String response;
-        
-        public Response(RESPONSE_CODE code, String response){
-            this.code = code;
-            this.response = response;
+    public SecureRequestController(String RSAKeysPath, Class<?> callerClass, REQUEST_MODE mode) throws NoSuchAlgorithmException, IOException, InvalidKeySpecException{
+        encryptionController = new EncryptionController(RSAKeysPath, callerClass);
+        if(mode == REQUEST_MODE.CLIENT){
+            encryptionController.LoadClientProfile();
+        }else{
+            encryptionController.LoadServiceProfile();
         }
-
-        public RESPONSE_CODE getCode() {
-            return code;
-        }
-
-        public void setCode(RESPONSE_CODE code) {
-            this.code = code;
-        }
-
-        public String getResponse() {
-            return response;
-        }
-
-        public void setResponse(String response) {
-            this.response = response;
-        }
-        
-    }
-    
-    public SecureRequestController(){
-        jsonutils = JSONUtils.getInstance(); 
     }
  
-    public Response doPOST(String requestUrl, HashMap<String,String> parameters){
+    public RequestResponse doPOST(String requestUrl, HashMap<String,String> parameters){
         return doRequest(requestUrl, "POST", parameters);
     }   
 
-    public Response doGET(String requestUrl, HashMap<String,String> parameters){
+    public RequestResponse doGET(String requestUrl, HashMap<String,String> parameters){
         return doRequest(requestUrl, "GET", parameters);
     }     
     
-    public Response doRequest(String requestUrl, String httpMethod, HashMap<String,String> parameters){
+    public RequestResponse doRequest(String requestUrl, String httpMethod, HashMap<String,String> parameters){
         try {
-            EncryptionController encryptionController = new EncryptionController();
-            
+            String base64AESKey = encryptionController.GenerateAESKey();
             HashMap<String,String> encryptedParameters = new HashMap<>();
             //AES encrypt parameters
             for (Map.Entry<String, String> mapEntry : parameters.entrySet()) {
-                encryptedParameters.put(mapEntry.getKey(), encryptionController.AESencrypt(mapEntry.getValue()));
+                encryptedParameters.put(mapEntry.getKey(), encryptionController.AESencrypt(mapEntry.getValue(), base64AESKey));
             }
             //Add RSA encrypt AESkey to request
-            String base64AESKey = encryptionController.GetAESKeyAsBase64();
-            encryptedParameters.put("transportKey", encryptionController.RSAencrypt(base64AESKey));
+            encryptedParameters.put("transportKey", encryptionController.RSAClientEncrypt(base64AESKey));
             
             //do POST request
             String encryptedBase64Response = RESTServiceUtils.RESTRequest(requestUrl, httpMethod, encryptedParameters);
             
             //AES decrypt response
-            final String decryptedContent = encryptionController.AESdecrypt(encryptedBase64Response);
+            final String decryptedContent = encryptionController.AESdecrypt(encryptedBase64Response, base64AESKey);
 
-            return new Response(RESPONSE_CODE.SUCCESS, decryptedContent);            
+            return new RequestResponse(RequestResponse.RESPONSE_CODE.SUCCESS, decryptedContent);            
         } catch (NoSuchAlgorithmException | IOException | InvalidKeySpecException | NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException | InvalidAlgorithmParameterException | Base64DecodingException ex) {
-            return new Response(RESPONSE_CODE.ERROR, Arrays.toString(ex.getStackTrace()));
+            ex.printStackTrace();
+            return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, ex.getMessage());
         }
     }
     
