@@ -2,18 +2,11 @@ package acertum.secureRequestHandler.controllers;
 
 import acertum.secureRequestHandler.entities.RequestResponse;
 import acertum.secureRequestHandler.utils.RESTServiceUtils;
-import com.sun.org.apache.xml.internal.security.exceptions.Base64DecodingException;
 import java.io.IOException;
-import java.security.InvalidAlgorithmParameterException;
-import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import javax.crypto.BadPaddingException;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
 
 public class SecureRequestController {
    
@@ -24,6 +17,7 @@ public class SecureRequestController {
     }
     
     public SecureRequestController(String RSAKeysPath, Class<?> callerClass, REQUEST_MODE mode) throws NoSuchAlgorithmException, IOException, InvalidKeySpecException{
+        com.sun.org.apache.xml.internal.security.Init.init();
         encryptionController = new EncryptionController(RSAKeysPath, callerClass);
         if(mode == REQUEST_MODE.CLIENT){
             encryptionController.LoadClientProfile();
@@ -32,15 +26,15 @@ public class SecureRequestController {
         }
     }
  
-    public RequestResponse doPOST(String requestUrl, HashMap<String,String> parameters){
-        return doRequest(requestUrl, "POST", parameters);
+    public RequestResponse doSecurePOST(String requestUrl, HashMap<String,String> parameters){
+        return doSecureRequest(requestUrl, "POST", parameters);
     }   
 
-    public RequestResponse doGET(String requestUrl, HashMap<String,String> parameters){
-        return doRequest(requestUrl, "GET", parameters);
+    public RequestResponse doSecureGET(String requestUrl, HashMap<String,String> parameters){
+        return doSecureRequest(requestUrl, "GET", parameters);
     }     
     
-    public RequestResponse doRequest(String requestUrl, String httpMethod, HashMap<String,String> parameters){
+    public RequestResponse doSecureRequest(String requestUrl, String httpMethod, HashMap<String,String> parameters){
         try {
             String base64AESKey = encryptionController.GenerateAESKey();
             HashMap<String,String> encryptedParameters = new HashMap<>();
@@ -51,17 +45,32 @@ public class SecureRequestController {
             //Add RSA encrypt AESkey to request
             encryptedParameters.put("transportKey", encryptionController.RSAClientEncrypt(base64AESKey));
             
-            //do POST request
+            //do request
             String encryptedBase64Response = RESTServiceUtils.RESTRequest(requestUrl, httpMethod, encryptedParameters);
             
             //AES decrypt response
             final String decryptedContent = encryptionController.AESdecrypt(encryptedBase64Response, base64AESKey);
 
             return new RequestResponse(RequestResponse.RESPONSE_CODE.SUCCESS, decryptedContent);            
-        } catch (NoSuchAlgorithmException | IOException | InvalidKeySpecException | NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException | InvalidAlgorithmParameterException | Base64DecodingException ex) {
-            ex.printStackTrace();
+        } catch (Exception ex) {
             return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, ex.getMessage());
         }
     }
     
+    public RequestResponse doPOST(String requestUrl, HashMap<String,String> parameters){
+        return doRequest(requestUrl, "POST", parameters);
+    }   
+
+    public RequestResponse doGET(String requestUrl, HashMap<String,String> parameters){
+        return doRequest(requestUrl, "POST", parameters);
+    }    
+    
+    public RequestResponse doRequest(String requestUrl, String httpMethod, HashMap<String,String> parameters){
+        try {
+            String response = RESTServiceUtils.RESTRequest(requestUrl, httpMethod, parameters);
+            return new RequestResponse(RequestResponse.RESPONSE_CODE.SUCCESS, response);            
+        } catch (Exception ex) {
+            return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, ex.toString());
+        }
+    }    
 }

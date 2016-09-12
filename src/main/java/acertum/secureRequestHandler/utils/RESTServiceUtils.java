@@ -1,7 +1,6 @@
 package acertum.secureRequestHandler.utils;
 
 import java.io.BufferedReader;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -19,11 +18,12 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSession;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
-import javax.xml.ws.http.HTTPException;
 
 public class RESTServiceUtils {
+    
+    private static final int CONNECTION_TIMEOUT = 5000;
 
-    public static String RESTRequest(String url, String httplMethod, HashMap<String, String> params) throws IOException, HTTPException {
+    public static String RESTRequest(String url, String httplMethod, HashMap<String, String> params) throws Exception {
         String responseJSON = "";
         
         if (url.startsWith("https://")) {
@@ -32,6 +32,7 @@ public class RESTServiceUtils {
 
         URL u = new URL(url);
         HttpURLConnection con = (HttpURLConnection) u.openConnection();
+        con.setConnectTimeout(CONNECTION_TIMEOUT);
 
         con.setDoOutput(true);
         con.setDoInput(true);
@@ -107,11 +108,11 @@ public class RESTServiceUtils {
         }
     }
 
-    public static String getREST(String url, HashMap<String, String> params) throws IOException, HTTPException {
+    public static String getREST(String url, HashMap<String, String> params) throws Exception {
         return RESTRequest(url, "GET", params);
     }
 
-    public static String postREST(String url, HashMap<String, String> params) throws IOException, HTTPException {
+    public static String postREST(String url, HashMap<String, String> params) throws Exception {
         return RESTRequest(url, "POST", params);
     }
 }
