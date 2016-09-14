@@ -10,9 +10,13 @@ sourceCompatibility = gradleProperties_compileJavaVersion
 // Note however, that you may define your own "run" and "debug" task if you
 // prefer. In this case NetBeans will not add these tasks but you may rely on
 // your own implementation.
+
+version = gradleProperties_repositoryVersion
+
 if (!hasProperty('mainClass')) {
     ext.mainClass = ''
 }
+
 
 repositories {
     def internalRepository = gradleProperties_releaseArtifactoryRepository
@@ -29,10 +33,11 @@ repositories {
 
 dependencies {
             
-    runtime "com.google.code.gson:gson:$gradleProperties_gsonVersion",
+    runtime "com.google.code.gson:gson:$gradleProperties_gsonVersion",    
             "log4j:log4j:$gradleProperties_log4jVersion",
             "com.google.zxing:core:3.2.1",
-            "com.sun.xml.security:xml-security-impl:1.0"
+            "com.sun.xml.security:xml-security-impl:1.0",
+            "org.json:json:20140107"
     
     
     compile "com.google.code.gson:gson:$gradleProperties_gsonVersion",    
@@ -41,3 +46,16 @@ dependencies {
             "com.sun.xml.security:xml-security-impl:1.0",
             "org.json:json:20140107"
 }
+
+
+jar {
+    manifest {
+        attributes 'Implementation-Title': rootProject.name, 'Class-Path': '.'
+    }
+    from {
+        configurations.runtime.collect {
+            it.isDirectory() ? it : zipTree(it)
+        }
+    }
+}
+
