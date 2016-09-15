@@ -1,6 +1,7 @@
 package acertum.secureRequestHandler.controllers;
 
 import acertum.secureRequestHandler.entities.RequestResponse;
+import acertum.secureRequestHandler.utils.EncryptionUtils;
 import acertum.secureRequestHandler.utils.RESTServiceUtils;
 import com.sun.org.apache.xml.internal.security.exceptions.Base64DecodingException;
 import java.io.IOException;
@@ -78,7 +79,7 @@ public class SecureRequestController {
         //AES decrypt response
         final String decryptedContent;
         try {
-            decryptedContent = encryptionController.AESdecrypt(encryptedBase64Response, base64AESKey);
+            decryptedContent = encryptionController.AESdecrypt(encryptedBase64Response, EncryptionUtils.getInstance().FixBadRequestTransportChar(base64AESKey));
         } catch (NoSuchAlgorithmException | IOException | InvalidKeySpecException | NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException | InvalidAlgorithmParameterException | Base64DecodingException ex) {
             return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error al desencriptar la respuesta de la petición - " + ex.getMessage());
         }
