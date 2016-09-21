@@ -27,7 +27,6 @@ public class EncryptionController {
     
     private final EncryptionUtils encryptionUtils;
     private final ArrayUtils arrayUtils;
-    private final KeyFactory RSAKeyFactory;
     
     private final String ENCRYPT_CHARSET_TYPE = "UTF-8";
     
@@ -36,102 +35,47 @@ public class EncryptionController {
     
     private final String AES_ENCRYPT_KEY_ALGORITHM = "AES"; 
     private final String AES_ENCRYPT_ALGORITHM = "AES/CBC/PKCS5Padding";  
-    
-    private final String KEYS_PATH;
-    
-    private final String SERVICE_PUBLIC_KEY_NAME = "public_service.der";
-    private PublicKey SERVICE_PUBLIC_KEY;
-    private final String SERVICE_PRIVATE_KEY_NAME = "private_service.der";
-    private PrivateKey SERVICE_PRIVATE_KEY;
-    
-    private final String CLIENT_PUBLIC_KEY_NAME = "public_client.der";
-    private PublicKey CLIENT_PUBLIC_KEY;
-    private final String CLIENT_PRIVATE_KEY_NAME = "private_client.der";
-    private PrivateKey CLIENT_PRIVATE_KEY;
-    
     private final Class CALLER_CLASS;
     
-    public EncryptionController(String RSAKeysPath, Class<?> callerClass) throws NoSuchAlgorithmException, IOException, InvalidKeySpecException{
+    public EncryptionController(Class<?> callerClass){
         encryptionUtils = EncryptionUtils.getInstance();
         arrayUtils = ArrayUtils.getInstance();
-        RSAKeyFactory = KeyFactory.getInstance(this.RSA_ENCRYPT_KEY_ALGORITHM);
         CALLER_CLASS = callerClass;
-        KEYS_PATH = RSAKeysPath;
     }
     
-    public void LoadClientProfile() throws IOException, InvalidKeySpecException, NoSuchAlgorithmException{
-        LoadRSAPrivateClientKey();
-        LoadRSAPublicServiceKey();
-    }
-    
-    public void LoadServiceProfile() throws IOException, NoSuchAlgorithmException, InvalidKeySpecException{
-        LoadRSAPrivateServiceKey();
-        LoadRSAPublicClientKey();
-    }
-    
-    private void LoadRSAPublicServiceKey() throws IOException, NoSuchAlgorithmException, InvalidKeySpecException{
-        InputStream inPublicKey = CALLER_CLASS.getResourceAsStream( this.KEYS_PATH + this.SERVICE_PUBLIC_KEY_NAME );
+    public PublicKey loadRSAPublicKeyFromResources(String keyPath) throws IOException, InvalidKeySpecException, NoSuchAlgorithmException{
+        InputStream inPublicKey = CALLER_CLASS.getResourceAsStream( keyPath );
         if(inPublicKey == null){
-            throw new IOException("Can not load public service key");
+            throw new IOException("Can not load public key from path: " + keyPath);
         }
         byte[] keyBytes = arrayUtils.inputStreamToByteArray( inPublicKey );
         X509EncodedKeySpec spec = new X509EncodedKeySpec( keyBytes );
-        SERVICE_PUBLIC_KEY = RSAKeyFactory.generatePublic( spec );         
+        return KeyFactory.getInstance(this.RSA_ENCRYPT_KEY_ALGORITHM).generatePublic( spec );   
     }
     
-    private void LoadRSAPrivateServiceKey() throws IOException, NoSuchAlgorithmException, InvalidKeySpecException{
-        InputStream inPrivateKey = CALLER_CLASS.getResourceAsStream( this.KEYS_PATH + this.SERVICE_PRIVATE_KEY_NAME );
+    public PrivateKey loadRSAPrivateKeyFromResources(String keyPath) throws IOException, InvalidKeySpecException, NoSuchAlgorithmException{
+        InputStream inPrivateKey = CALLER_CLASS.getResourceAsStream( keyPath );
         if(inPrivateKey == null){
-            throw new IOException("Can not load private service key");
+            throw new IOException("Can not load private key from path: " + keyPath);
         }
         byte[] keyBytes = arrayUtils.inputStreamToByteArray( inPrivateKey );
         PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec( keyBytes );
-        SERVICE_PRIVATE_KEY = RSAKeyFactory.generatePrivate( spec );         
+        return KeyFactory.getInstance(this.RSA_ENCRYPT_KEY_ALGORITHM).generatePrivate( spec ); 
     }
-    
-    private void LoadRSAPublicClientKey() throws IOException, NoSuchAlgorithmException, InvalidKeySpecException{
-        InputStream inPublicKey = CALLER_CLASS.getResourceAsStream( this.KEYS_PATH + this.CLIENT_PUBLIC_KEY_NAME );
-        if(inPublicKey == null){
-            throw new IOException("Can not load public service key");
-        }
-        byte[] keyBytes = arrayUtils.inputStreamToByteArray( inPublicKey );
-        X509EncodedKeySpec spec = new X509EncodedKeySpec( keyBytes );
-        CLIENT_PUBLIC_KEY = RSAKeyFactory.generatePublic( spec );         
-    }
-    
-    private void LoadRSAPrivateClientKey() throws IOException, NoSuchAlgorithmException, InvalidKeySpecException{
-        InputStream inPrivateKey = CALLER_CLASS.getResourceAsStream( this.KEYS_PATH + this.CLIENT_PRIVATE_KEY_NAME );
-        if(inPrivateKey == null){
-            throw new IOException("Can not load private service key");
-        }
-        byte[] keyBytes = arrayUtils.inputStreamToByteArray( inPrivateKey );
-        PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec( keyBytes );
-        CLIENT_PRIVATE_KEY = RSAKeyFactory.generatePrivate( spec );         
-    }
-    
+
     public String GenerateAESKey() throws NoSuchAlgorithmException{
         KeyGenerator keyGen = KeyGenerator.getInstance(AES_ENCRYPT_KEY_ALGORITHM);
         keyGen.init(128);
         return Base64.encode(keyGen.generateKey().getEncoded());
     }
     
-    public String RSAClientEncrypt(String content) throws NoSuchAlgorithmException, IOException, InvalidKeySpecException, NoSuchPaddingException, InvalidKeyException, UnsupportedEncodingException, IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException{
-        byte[] encryptedBytes = encryptionUtils.encrypt(content.getBytes(ENCRYPT_CHARSET_TYPE), SERVICE_PUBLIC_KEY, RSA_ENCRYPT_ALGORITHM, false);
+    public String RSAEncrypt(String content, PublicKey publicKey) throws NoSuchAlgorithmException, IOException, InvalidKeySpecException, NoSuchPaddingException, InvalidKeyException, UnsupportedEncodingException, IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException{
+        byte[] encryptedBytes = encryptionUtils.encrypt(content.getBytes(ENCRYPT_CHARSET_TYPE), publicKey, RSA_ENCRYPT_ALGORITHM, false);
         return Base64.encode(encryptedBytes);
     }
     
-    public String RSAServiceEncrypt(String content) throws NoSuchAlgorithmException, IOException, InvalidKeySpecException, NoSuchPaddingException, InvalidKeyException, UnsupportedEncodingException, IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException{
-        byte[] encryptedBytes = encryptionUtils.encrypt(content.getBytes(ENCRYPT_CHARSET_TYPE), CLIENT_PUBLIC_KEY, RSA_ENCRYPT_ALGORITHM, false);
-        return Base64.encode(encryptedBytes);
-    }
-    
-    public String RSAClientDecrypt(String base64content) throws NoSuchAlgorithmException, IOException, InvalidKeySpecException, NoSuchPaddingException, InvalidKeyException, UnsupportedEncodingException, IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException, Base64DecodingException{
-        byte[] encryptedBytes = encryptionUtils.decrypt(Base64.decode(base64content), CLIENT_PRIVATE_KEY, RSA_ENCRYPT_ALGORITHM, false);
-        return new String(encryptedBytes, ENCRYPT_CHARSET_TYPE);
-    }
-    
-    public String RSAServiceDecrypt(String base64content) throws NoSuchAlgorithmException, IOException, InvalidKeySpecException, NoSuchPaddingException, InvalidKeyException, UnsupportedEncodingException, IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException, Base64DecodingException{
-        byte[] encryptedBytes = encryptionUtils.decrypt(Base64.decode(base64content), SERVICE_PRIVATE_KEY, RSA_ENCRYPT_ALGORITHM, false);
+    public String RSADecrypt(String base64content, PrivateKey privateKey) throws NoSuchAlgorithmException, IOException, InvalidKeySpecException, NoSuchPaddingException, InvalidKeyException, UnsupportedEncodingException, IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException, Base64DecodingException{
+        byte[] encryptedBytes = encryptionUtils.decrypt(Base64.decode(base64content), privateKey, RSA_ENCRYPT_ALGORITHM, false);
         return new String(encryptedBytes, ENCRYPT_CHARSET_TYPE);
     }
     

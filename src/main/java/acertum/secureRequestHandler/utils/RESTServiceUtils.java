@@ -23,7 +23,7 @@ public class RESTServiceUtils {
     
     private static final int CONNECTION_TIMEOUT = 5000;
 
-    public static String RESTRequest(String url, String httplMethod, HashMap<String, String> params) throws Exception {
+    public static String RESTRequest(String url, String httplMethod, String contentType, HashMap<String, String> params) throws Exception {
         String responseJSON = "";
         
         if (url.startsWith("https://")) {
@@ -37,7 +37,7 @@ public class RESTServiceUtils {
         con.setDoOutput(true);
         con.setDoInput(true);
         con.setRequestMethod(httplMethod);
-        con.setRequestProperty("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8");
+        con.setRequestProperty("Content-Type", contentType);
 
         //Parse params
         String paramsParsed = "";
@@ -106,13 +106,5 @@ public class RESTServiceUtils {
         } catch (KeyManagementException e) {
             System.err.println("Error [UtilWS@ignorarSSL]: " + e.getMessage());
         }
-    }
-
-    public static String getREST(String url, HashMap<String, String> params) throws Exception {
-        return RESTRequest(url, "GET", params);
-    }
-
-    public static String postREST(String url, HashMap<String, String> params) throws Exception {
-        return RESTRequest(url, "POST", params);
     }
 }

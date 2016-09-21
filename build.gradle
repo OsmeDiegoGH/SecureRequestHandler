@@ -1,4 +1,5 @@
 apply plugin: 'java'
+apply plugin: 'maven-publish'
 
 sourceCompatibility = gradleProperties_compileJavaVersion
 [compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
@@ -25,8 +26,8 @@ repositories {
         url internalRepository
 
         credentials {
-            username gradleProperties_user
-            password gradleProperties_password
+            username gradleProperties_client_user
+            password gradleProperties_client_password
         }
     }
 }
@@ -57,5 +58,27 @@ jar {
             it.isDirectory() ? it : zipTree(it)
         }
     }
+}
+
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            groupId gradleProperties_artifactGroup
+            artifactId rootProject.name
+            version gradleProperties_repositoryVersion
+            
+            from components.java
+        }
+    }
+    repositories {
+        maven {
+            credentials {
+                username gradleProperties_publisher_user
+                password gradleProperties_publisher_password
+            }
+            url 'http://10.51.145.249:8081/artifactory/' + gradleProperties_artifactName
+        }
+    }    
 }
 

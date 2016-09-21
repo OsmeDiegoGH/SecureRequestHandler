@@ -8,11 +8,11 @@ import java.io.IOException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.security.spec.InvalidKeySpecException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
@@ -20,19 +20,14 @@ import javax.crypto.NoSuchPaddingException;
 public class SecureRequestController {
    
     private final EncryptionController encryptionController;
-    public enum REQUEST_MODE {
-        CLIENT,
-        SERVICE
-    }
+    private final PublicKey RSA_PUBLIC_KEY;
+    private final PrivateKey RSA_PRIVATE_KEY;
     
-    public SecureRequestController(String RSAKeysPath, Class<?> callerClass, REQUEST_MODE mode) throws NoSuchAlgorithmException, IOException, InvalidKeySpecException{
+    public SecureRequestController(Class<?> callerClass, String RSA_publicKeyPath, String RSA_privateKeyPath) throws NoSuchAlgorithmException, IOException, InvalidKeySpecException{
         com.sun.org.apache.xml.internal.security.Init.init();
-        encryptionController = new EncryptionController(RSAKeysPath, callerClass);
-        if(mode == REQUEST_MODE.CLIENT){
-            encryptionController.LoadClientProfile();
-        }else{
-            encryptionController.LoadServiceProfile();
-        }
+        encryptionController = new EncryptionController(callerClass);
+        RSA_PUBLIC_KEY = encryptionController.loadRSAPublicKeyFromResources(RSA_publicKeyPath);
+        RSA_PRIVATE_KEY = encryptionController.loadRSAPrivateKeyFromResources(RSA_privateKeyPath);
     }
  
     public RequestResponse doSecurePOST(String requestUrl, HashMap<String,String> parameters){
@@ -63,7 +58,7 @@ public class SecureRequestController {
         
         try {
             //Add RSA encrypt AESkey to request
-            encryptedParameters.put("transportKey", encryptionController.RSAClientEncrypt(base64AESKey));
+            encryptedParameters.put("transportKey", encryptionController.RSAEncrypt(base64AESKey, RSA_PUBLIC_KEY));
         } catch (NoSuchAlgorithmException | IOException | InvalidKeySpecException | NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException | InvalidAlgorithmParameterException ex) {
             return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error al encriptar llave dinámica - " + ex.getMessage());
         }
@@ -71,7 +66,7 @@ public class SecureRequestController {
         //do request
         String encryptedBase64Response;
         try {
-            encryptedBase64Response = RESTServiceUtils.RESTRequest(requestUrl, httpMethod, encryptedParameters);
+            encryptedBase64Response = RESTServiceUtils.RESTRequest(requestUrl, httpMethod, "application/x-www-form-urlencoded;charset=UTF-8", encryptedParameters);
         } catch (Exception ex) {
             return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error en el consumo de la petición - " + ex.getMessage());
         }
@@ -79,25 +74,25 @@ public class SecureRequestController {
         //AES decrypt response
         final String decryptedContent;
         try {
-            decryptedContent = encryptionController.AESdecrypt(encryptedBase64Response, EncryptionUtils.getInstance().FixBadRequestTransportChar(base64AESKey));
+            decryptedContent = encryptionController.AESdecrypt(EncryptionUtils.getInstance().FixBadRequestTransportChar(encryptedBase64Response), base64AESKey);
         } catch (NoSuchAlgorithmException | IOException | InvalidKeySpecException | NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException | InvalidAlgorithmParameterException | Base64DecodingException ex) {
-            return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error al desencriptar la respuesta de la petición - " + ex.getMessage());
+            return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error: " + ex.getMessage() + ", al desencriptar la respuesta del servicio --- respuesta: " + encryptedBase64Response);
         }
 
         return new RequestResponse(RequestResponse.RESPONSE_CODE.SUCCESS, decryptedContent); 
     }
     
     public RequestResponse doPOST(String requestUrl, HashMap<String,String> parameters){
-        return doRequest(requestUrl, "POST", parameters);
+        return doRequest(requestUrl, "POST", "application/x-www-form-urlencoded;charset=UTF-8", parameters);
     }   
 
     public RequestResponse doGET(String requestUrl, HashMap<String,String> parameters){
-        return doRequest(requestUrl, "POST", parameters);
+        return doRequest(requestUrl, "POST", "application/x-www-form-urlencoded;charset=UTF-8", parameters);
     }    
     
-    public RequestResponse doRequest(String requestUrl, String httpMethod, HashMap<String,String> parameters){
+    public RequestResponse doRequest(String requestUrl, String httpMethod, String contentType, HashMap<String,String> parameters){
         try {
-            String response = RESTServiceUtils.RESTRequest(requestUrl, httpMethod, parameters);
+            String response = RESTServiceUtils.RESTRequest(requestUrl, httpMethod, contentType, parameters);
             return new RequestResponse(RequestResponse.RESPONSE_CODE.SUCCESS, response);            
         } catch (Exception ex) {
             return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, ex.toString());
