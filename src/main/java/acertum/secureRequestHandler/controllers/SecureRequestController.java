@@ -30,15 +30,23 @@ public class SecureRequestController {
         RSA_PRIVATE_KEY = encryptionController.loadRSAPrivateKeyFromResources(RSA_privateKeyPath);
     }
  
-    public RequestResponse doSecurePOST(String requestUrl, HashMap<String,String> parameters){
-        return doSecureRequest(requestUrl, "POST", parameters);
-    }   
-
-    public RequestResponse doSecureGET(String requestUrl, HashMap<String,String> parameters){
-        return doSecureRequest(requestUrl, "GET", parameters);
-    }     
+    public RequestResponse doSecurePOST(String requestUrl, HashMap<String,String> secureParameters){
+        return doSecureRequest(requestUrl, "POST", secureParameters, null);
+    } 
     
-    public RequestResponse doSecureRequest(String requestUrl, String httpMethod, HashMap<String,String> parameters){
+    public RequestResponse doSecurePOST(String requestUrl, HashMap<String,String> secureParameters, HashMap<String,String> rawParameters){
+        return doSecureRequest(requestUrl, "POST", secureParameters, rawParameters);
+    } 
+
+    public RequestResponse doSecureGET(String requestUrl, HashMap<String,String> secureParameters){
+        return doSecureRequest(requestUrl, "GET", secureParameters, null);
+    }  
+    
+    public RequestResponse doSecureGET(String requestUrl, HashMap<String,String> secureParameters, HashMap<String,String> rawParameters){
+        return doSecureRequest(requestUrl, "GET", secureParameters, rawParameters);
+    }  
+    
+    public RequestResponse doSecureRequest(String requestUrl, String httpMethod, HashMap<String,String> secureParameters, HashMap<String,String> rawParameters){
         String base64AESKey;
         try {
             base64AESKey = encryptionController.GenerateAESKey();
@@ -46,11 +54,11 @@ public class SecureRequestController {
             return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error al generar la llave dinámica - " + ex.getMessage());
         }
         
-        HashMap<String,String> encryptedParameters = new HashMap<>();
+        HashMap<String,String> requestParameters = new HashMap<>();
         try {
             //AES encrypt parameters
-            for (Map.Entry<String, String> mapEntry : parameters.entrySet()) {
-                encryptedParameters.put(mapEntry.getKey(), encryptionController.AESencrypt(mapEntry.getValue(), base64AESKey));
+            for (Map.Entry<String, String> mapEntry : secureParameters.entrySet()) {
+                requestParameters.put(mapEntry.getKey(), encryptionController.AESencrypt(mapEntry.getValue(), base64AESKey));
             }
         } catch (NoSuchAlgorithmException | IOException | InvalidKeySpecException | NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException | InvalidAlgorithmParameterException | Base64DecodingException ex) {
             return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error al encriptar los parámetros de la petición - " + ex.getMessage());
@@ -58,15 +66,18 @@ public class SecureRequestController {
         
         try {
             //Add RSA encrypt AESkey to request
-            encryptedParameters.put("transportKey", encryptionController.RSAEncrypt(base64AESKey, RSA_PUBLIC_KEY));
+            requestParameters.put("transportKey", encryptionController.RSAEncrypt(base64AESKey, RSA_PUBLIC_KEY));
         } catch (NoSuchAlgorithmException | IOException | InvalidKeySpecException | NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException | InvalidAlgorithmParameterException ex) {
             return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error al encriptar llave dinámica - " + ex.getMessage());
         }
-
+        if(rawParameters != null){
+            requestParameters.putAll(rawParameters);
+        }
+        
         //do request
         String encryptedBase64Response;
         try {
-            encryptedBase64Response = RESTServiceUtils.RESTRequest(requestUrl, httpMethod, "application/x-www-form-urlencoded;charset=UTF-8", encryptedParameters);
+            encryptedBase64Response = RESTServiceUtils.RESTRequest(requestUrl, httpMethod, "application/x-www-form-urlencoded;charset=UTF-8", requestParameters);
         } catch (Exception ex) {
             return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error en el consumo de la petición - " + ex.getMessage());
         }
@@ -84,11 +95,11 @@ public class SecureRequestController {
     
     public RequestResponse doPOST(String requestUrl, HashMap<String,String> parameters){
         return doRequest(requestUrl, "POST", "application/x-www-form-urlencoded;charset=UTF-8", parameters);
-    }   
+    } 
 
     public RequestResponse doGET(String requestUrl, HashMap<String,String> parameters){
         return doRequest(requestUrl, "POST", "application/x-www-form-urlencoded;charset=UTF-8", parameters);
-    }    
+    } 
     
     public RequestResponse doRequest(String requestUrl, String httpMethod, String contentType, HashMap<String,String> parameters){
         try {

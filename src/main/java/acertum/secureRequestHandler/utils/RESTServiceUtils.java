@@ -7,6 +7,7 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.X509Certificate;
@@ -42,7 +43,7 @@ public class RESTServiceUtils {
         //Parse params
         String paramsParsed = "";
         for (Entry<String, String> tmp : params.entrySet()) {
-            paramsParsed += tmp.getKey() + "=" + tmp.getValue() + "&";
+            paramsParsed += tmp.getKey() + "=" + URLEncoder.encode(tmp.getValue(), "UTF-8") + "&";
         }
 
         if (paramsParsed.endsWith("&")) {
