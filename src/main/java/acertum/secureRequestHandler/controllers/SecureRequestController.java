@@ -19,11 +19,11 @@ import javax.crypto.NoSuchPaddingException;
 
 public class SecureRequestController {
    
-    private final EncryptionController encryptionController;
-    private final PublicKey RSA_PUBLIC_KEY;
-    private final PrivateKey RSA_PRIVATE_KEY;
+    private EncryptionController encryptionController;
+    private PublicKey RSA_PUBLIC_KEY;
+    private PrivateKey RSA_PRIVATE_KEY;
     
-    public SecureRequestController(Class<?> callerClass, String RSA_publicKeyPath, String RSA_privateKeyPath) throws NoSuchAlgorithmException, IOException, InvalidKeySpecException{
+    public void loadKeysFromResources(Class<?> callerClass, String RSA_publicKeyPath, String RSA_privateKeyPath) throws NoSuchAlgorithmException, IOException, InvalidKeySpecException{
         com.sun.org.apache.xml.internal.security.Init.init();
         encryptionController = new EncryptionController(callerClass);
         RSA_PUBLIC_KEY = encryptionController.loadRSAPublicKeyFromResources(RSA_publicKeyPath);
