@@ -3,29 +3,26 @@ package acertum.secureRequestHandler.controllers;
 import acertum.secureRequestHandler.entities.RequestResponse;
 import acertum.secureRequestHandler.utils.EncryptionUtils;
 import acertum.secureRequestHandler.utils.RESTServiceUtils;
-import com.sun.org.apache.xml.internal.security.exceptions.Base64DecodingException;
 import java.io.IOException;
-import java.security.InvalidAlgorithmParameterException;
-import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.spec.InvalidKeySpecException;
 import java.util.HashMap;
 import java.util.Map;
-import javax.crypto.BadPaddingException;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
 
 public class SecureRequestController {
    
-    private EncryptionController encryptionController;
+    private final EncryptionController encryptionController;
     private PublicKey RSA_PUBLIC_KEY;
     private PrivateKey RSA_PRIVATE_KEY;
     
-    public void loadKeysFromResources(Class<?> callerClass, String RSA_publicKeyPath, String RSA_privateKeyPath) throws NoSuchAlgorithmException, IOException, InvalidKeySpecException{
-        com.sun.org.apache.xml.internal.security.Init.init();
+    public SecureRequestController(Class<?> callerClass){
         encryptionController = new EncryptionController(callerClass);
+    }
+    
+    public void loadKeysFromResources(String RSA_publicKeyPath, String RSA_privateKeyPath) throws NoSuchAlgorithmException, IOException, InvalidKeySpecException{
+        com.sun.org.apache.xml.internal.security.Init.init();
         RSA_PUBLIC_KEY = encryptionController.loadRSAPublicKeyFromResources(RSA_publicKeyPath);
         RSA_PRIVATE_KEY = encryptionController.loadRSAPrivateKeyFromResources(RSA_privateKeyPath);
     }
@@ -50,7 +47,7 @@ public class SecureRequestController {
         String base64AESKey;
         try {
             base64AESKey = encryptionController.GenerateAESKey();
-        } catch (NoSuchAlgorithmException ex) {
+        } catch (Exception ex) {
             return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error al generar la llave dinámica - " + ex.getMessage());
         }
         
