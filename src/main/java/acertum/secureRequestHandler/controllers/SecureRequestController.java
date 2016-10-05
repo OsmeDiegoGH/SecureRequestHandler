@@ -54,20 +54,20 @@ public class SecureRequestController {
             return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error al generar la llave dinámica - " + ex.getMessage());
         }
         
-        HashMap<String,String> requestParameters = new HashMap<>();
+        HashMap<String,String> requestParameters = new HashMap();
         try {
             //AES encrypt parameters
             for (Map.Entry<String, String> mapEntry : secureParameters.entrySet()) {
                 requestParameters.put(mapEntry.getKey(), encryptionController.AESencrypt(mapEntry.getValue(), base64AESKey));
             }
-        } catch (NoSuchAlgorithmException | IOException | InvalidKeySpecException | NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException | InvalidAlgorithmParameterException | Base64DecodingException ex) {
+        } catch (Exception ex) {
             return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error al encriptar los parámetros de la petición - " + ex.getMessage());
         }
         
         try {
             //Add RSA encrypt AESkey to request
             requestParameters.put("transportKey", encryptionController.RSAEncrypt(base64AESKey, RSA_PUBLIC_KEY));
-        } catch (NoSuchAlgorithmException | IOException | InvalidKeySpecException | NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException | InvalidAlgorithmParameterException ex) {
+        } catch (Exception ex) {
             return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error al encriptar llave dinámica - " + ex.getMessage());
         }
         if(rawParameters != null){
@@ -86,7 +86,7 @@ public class SecureRequestController {
         final String decryptedContent;
         try {
             decryptedContent = encryptionController.AESdecrypt(EncryptionUtils.getInstance().FixBadRequestTransportChar(encryptedBase64Response), base64AESKey);
-        } catch (NoSuchAlgorithmException | IOException | InvalidKeySpecException | NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException | InvalidAlgorithmParameterException | Base64DecodingException ex) {
+        } catch (Exception ex) {
             return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error: " + ex.getMessage() + ", al desencriptar la respuesta del servicio --- respuesta: " + encryptedBase64Response);
         }
 
