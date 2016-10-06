@@ -27,10 +27,8 @@ public class RESTServiceUtils {
     public static String RESTRequest(String url, String httplMethod, String contentType, HashMap<String, String> params) throws Exception {
         String responseJSON = "";
         
-        if (url.startsWith("https://")) {
-            ignoreSSL();
-        }
-
+        //force http request to use TLSv1 protocol
+        System.setProperty("https.protocols", "TLSv1");
         URL u = new URL(url);
         HttpURLConnection con = (HttpURLConnection) u.openConnection();
         con.setConnectTimeout(CONNECTION_TIMEOUT);
@@ -39,7 +37,7 @@ public class RESTServiceUtils {
         con.setDoInput(true);
         con.setRequestMethod(httplMethod);
         con.setRequestProperty("Content-Type", contentType);
-
+        
         //Parse params
         String paramsParsed = "";
         for (Entry<String, String> tmp : params.entrySet()) {

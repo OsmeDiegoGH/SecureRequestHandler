@@ -84,7 +84,7 @@ public class SecureRequestController {
         try {
             decryptedContent = encryptionController.AESdecrypt(EncryptionUtils.getInstance().FixBadRequestTransportChar(encryptedBase64Response), base64AESKey);
         } catch (Exception ex) {
-            return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error: " + ex.getMessage() + ", al desencriptar la respuesta del servicio --- respuesta: " + encryptedBase64Response);
+            return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error: " + ex.toString()+ ", al desencriptar la respuesta del servicio --- respuesta: " + encryptedBase64Response);
         }
 
         return new RequestResponse(RequestResponse.RESPONSE_CODE.SUCCESS, decryptedContent); 
