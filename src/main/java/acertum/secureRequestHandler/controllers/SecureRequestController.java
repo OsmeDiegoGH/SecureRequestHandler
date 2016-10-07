@@ -73,11 +73,20 @@ public class SecureRequestController {
         
         //do request
         String encryptedBase64Response;
+        String httpsProtocols = System.getProperty("https.protocols") != null ? System.getProperty("https.protocols") : "";
+        System.out.println("Original https protocols => " + httpsProtocols);
         try {
+            //force http request to use TLSv1 protocol
+            System.setProperty("https.protocols", "TLSv1");
             encryptedBase64Response = RESTServiceUtils.RESTRequest(requestUrl, httpMethod, "application/x-www-form-urlencoded;charset=UTF-8", requestParameters);
+            System.out.println("Rollingback https protocols");
+            System.setProperty("https.protocols", httpsProtocols);
         } catch (Exception ex) {
+            System.out.println("Rollingback https protocols");
+            System.setProperty("https.protocols", httpsProtocols);
             return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error en el consumo de la petición - " + ex.getMessage());
         }
+        
 
         //AES decrypt response
         final String decryptedContent;
