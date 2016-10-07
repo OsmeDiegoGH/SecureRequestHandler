@@ -73,20 +73,36 @@ public class SecureRequestController {
         
         //do request
         String encryptedBase64Response;
-        String httpsProtocols = System.getProperty("https.protocols") != null ? System.getProperty("https.protocols") : "";
-        System.out.println("Original https protocols => " + httpsProtocols);
-        try {
+        boolean isHTTPSRequest = requestUrl.startsWith("https://");
+        String httpsProtocols = "";
+        
+        if(isHTTPSRequest){
+            httpsProtocols = System.getProperty("https.protocols") != null ? System.getProperty("https.protocols") : "";
+            System.out.println("Original https protocols => " + httpsProtocols);
             //force http request to use TLSv1 protocol
             System.setProperty("https.protocols", "TLSv1");
-            encryptedBase64Response = RESTServiceUtils.RESTRequest(requestUrl, httpMethod, "application/x-www-form-urlencoded;charset=UTF-8", requestParameters);
-            System.out.println("Rollingback https protocols");
-            System.setProperty("https.protocols", httpsProtocols);
-        } catch (Exception ex) {
-            System.out.println("Rollingback https protocols");
-            System.setProperty("https.protocols", httpsProtocols);
-            return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error en el consumo de la petición - " + ex.getMessage());
         }
-        
+        try {
+            encryptedBase64Response = RESTServiceUtils.RESTRequest(requestUrl, httpMethod, "application/x-www-form-urlencoded;charset=UTF-8", requestParameters);
+        } catch (Exception ex) {
+            if (!isHTTPSRequest) {
+                return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error en el consumo de la petición - " + ex.toString());
+            }
+            System.out.println("Unable to request with secure certificate: " + ex.toString());
+            System.out.println("Trying to load without SSL");
+            RESTServiceUtils.ignoreSSL();
+            try {
+                encryptedBase64Response = RESTServiceUtils.RESTRequest(requestUrl, httpMethod, "application/x-www-form-urlencoded;charset=UTF-8", requestParameters);
+            } catch (Exception exceptionignoringSSL) {
+                System.out.println("Rollingback https protocols");
+                System.setProperty("https.protocols", httpsProtocols);
+                return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error en el consumo de la petición - " + exceptionignoringSSL.toString());
+            }
+        }
+        if(isHTTPSRequest){
+            System.out.println("Rollingback https protocols");
+            System.setProperty("https.protocols", httpsProtocols);
+        }
 
         //AES decrypt response
         final String decryptedContent;

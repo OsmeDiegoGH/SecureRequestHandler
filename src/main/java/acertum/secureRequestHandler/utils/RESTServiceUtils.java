@@ -69,7 +69,7 @@ public class RESTServiceUtils {
         return responseJSON;
     }
 
-    private static void ignoreSSL() {
+    public static void ignoreSSL() {
         try {
             TrustManager[] trustAllCerts = new TrustManager[]{new X509TrustManager() {
                 @Override
