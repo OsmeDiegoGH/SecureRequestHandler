@@ -26,24 +26,33 @@ public class SecureRequestController {
         RSA_PUBLIC_KEY = encryptionController.loadRSAPublicKeyFromResources(RSA_publicKeyPath);
         RSA_PRIVATE_KEY = encryptionController.loadRSAPrivateKeyFromResources(RSA_privateKeyPath);
     }
- 
+     
     public RequestResponse doSecurePOST(String requestUrl, HashMap<String,String> secureParameters){
-        return doSecureRequest(requestUrl, "POST", secureParameters, null);
+        return doSecureRequest(requestUrl, "POST", secureParameters, null, false);
     } 
     
     public RequestResponse doSecurePOST(String requestUrl, HashMap<String,String> secureParameters, HashMap<String,String> rawParameters){
-        return doSecureRequest(requestUrl, "POST", secureParameters, rawParameters);
+        return doSecureRequest(requestUrl, "POST", secureParameters, rawParameters, false);
+    } 
+    
+    public RequestResponse doSecurePOST(String requestUrl, HashMap<String,String> secureParameters, HashMap<String,String> rawParameters, boolean tryWithoutSSLOnHTTPError){
+        return doSecureRequest(requestUrl, "POST", secureParameters, rawParameters, tryWithoutSSLOnHTTPError);
     } 
 
     public RequestResponse doSecureGET(String requestUrl, HashMap<String,String> secureParameters){
-        return doSecureRequest(requestUrl, "GET", secureParameters, null);
+        return doSecureRequest(requestUrl, "GET", secureParameters, null, false);
     }  
     
     public RequestResponse doSecureGET(String requestUrl, HashMap<String,String> secureParameters, HashMap<String,String> rawParameters){
-        return doSecureRequest(requestUrl, "GET", secureParameters, rawParameters);
+        return doSecureRequest(requestUrl, "GET", secureParameters, rawParameters, false);
     }  
     
-    public RequestResponse doSecureRequest(String requestUrl, String httpMethod, HashMap<String,String> secureParameters, HashMap<String,String> rawParameters){
+    public RequestResponse doSecureGET(String requestUrl, HashMap<String,String> secureParameters, HashMap<String,String> rawParameters, boolean tryWithoutSSLOnHTTPError){
+        return doSecureRequest(requestUrl, "GET", secureParameters, rawParameters, tryWithoutSSLOnHTTPError);
+    }  
+
+    
+    public RequestResponse doSecureRequest(String requestUrl, String httpMethod, HashMap<String,String> secureParameters, HashMap<String,String> rawParameters, boolean tryWithoutSSLOnHTTPError){
         String base64AESKey;
         try {
             base64AESKey = encryptionController.GenerateAESKey();
@@ -78,14 +87,13 @@ public class SecureRequestController {
         
         if(isHTTPSRequest){
             httpsProtocols = System.getProperty("https.protocols") != null ? System.getProperty("https.protocols") : "";
-            System.out.println("Original https protocols => " + httpsProtocols);
             //force http request to use TLSv1 protocol
             System.setProperty("https.protocols", "TLSv1");
         }
         try {
             encryptedBase64Response = RESTServiceUtils.RESTRequest(requestUrl, httpMethod, "application/x-www-form-urlencoded;charset=UTF-8", requestParameters);
         } catch (Exception ex) {
-            if (!isHTTPSRequest) {
+            if (!isHTTPSRequest || !tryWithoutSSLOnHTTPError) {
                 return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error en el consumo de la petición - " + ex.toString());
             }
             System.out.println("Unable to request with secure certificate: " + ex.toString());
@@ -94,13 +102,11 @@ public class SecureRequestController {
             try {
                 encryptedBase64Response = RESTServiceUtils.RESTRequest(requestUrl, httpMethod, "application/x-www-form-urlencoded;charset=UTF-8", requestParameters);
             } catch (Exception exceptionignoringSSL) {
-                System.out.println("Rollingback https protocols");
                 System.setProperty("https.protocols", httpsProtocols);
                 return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error en el consumo de la petición - " + exceptionignoringSSL.toString());
             }
         }
         if(isHTTPSRequest){
-            System.out.println("Rollingback https protocols");
             System.setProperty("https.protocols", httpsProtocols);
         }
 
