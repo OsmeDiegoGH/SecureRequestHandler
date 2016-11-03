@@ -22,7 +22,7 @@ import javax.net.ssl.X509TrustManager;
 
 public class RESTServiceUtils {
     
-    private static final int CONNECTION_TIMEOUT = 5000;
+    private static final int CONNECTION_TIMEOUT = 1000;
 
     public static String RESTRequest(String url, String httplMethod, String contentType, HashMap<String, String> params) throws Exception {
         String responseJSON = "";
