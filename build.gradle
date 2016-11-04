@@ -12,7 +12,7 @@ sourceCompatibility = gradleProperties_sourceCompatibilityJAVAVersion
 // prefer. In this case NetBeans will not add these tasks but you may rely on
 // your own implementation.
 
-version = gradleProperties_repositoryVersion
+version = gradleProperties_projectVersion
 
 if (!hasProperty('mainClass')) {
     ext.mainClass = ''
@@ -74,7 +74,7 @@ publishing {
         mavenJava(MavenPublication) {
             groupId gradleProperties_artifactGroup
             artifactId rootProject.name
-            version gradleProperties_repositoryVersion
+            version gradleProperties_projectVersion
             
             from components.java
         }
