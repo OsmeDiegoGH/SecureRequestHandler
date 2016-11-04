@@ -35,8 +35,8 @@ public class SecureRequestController {
         return doSecureRequest(requestUrl, "POST", secureParameters, rawParameters, false);
     } 
     
-    public RequestResponse doSecurePOST(String requestUrl, HashMap<String,String> secureParameters, HashMap<String,String> rawParameters, boolean tryWithoutSSLOnHTTPError){
-        return doSecureRequest(requestUrl, "POST", secureParameters, rawParameters, tryWithoutSSLOnHTTPError);
+    public RequestResponse doSecurePOST(String requestUrl, HashMap<String,String> secureParameters, HashMap<String,String> rawParameters, boolean ignoreSSL){
+        return doSecureRequest(requestUrl, "POST", secureParameters, rawParameters, ignoreSSL);
     } 
 
     public RequestResponse doSecureGET(String requestUrl, HashMap<String,String> secureParameters){
@@ -47,12 +47,12 @@ public class SecureRequestController {
         return doSecureRequest(requestUrl, "GET", secureParameters, rawParameters, false);
     }  
     
-    public RequestResponse doSecureGET(String requestUrl, HashMap<String,String> secureParameters, HashMap<String,String> rawParameters, boolean tryWithoutSSLOnHTTPError){
-        return doSecureRequest(requestUrl, "GET", secureParameters, rawParameters, tryWithoutSSLOnHTTPError);
+    public RequestResponse doSecureGET(String requestUrl, HashMap<String,String> secureParameters, HashMap<String,String> rawParameters, boolean ignoreSSL){
+        return doSecureRequest(requestUrl, "GET", secureParameters, rawParameters, ignoreSSL);
     }  
 
     
-    public RequestResponse doSecureRequest(String requestUrl, String httpMethod, HashMap<String,String> secureParameters, HashMap<String,String> rawParameters, boolean tryWithoutSSLOnHTTPError){
+    public RequestResponse doSecureRequest(String requestUrl, String httpMethod, HashMap<String,String> secureParameters, HashMap<String,String> rawParameters, boolean ignoreSSL){
         String base64AESKey;
         try {
             base64AESKey = encryptionController.GenerateAESKey();
@@ -81,33 +81,24 @@ public class SecureRequestController {
         }
         
         //do request
-        String encryptedBase64Response;
         boolean isHTTPSRequest = requestUrl.startsWith("https://");
-        String httpsProtocols = "";
+        String encryptedBase64Response;
+        String httpsProtocols = System.getProperty("https.protocols") != null ? System.getProperty("https.protocols") : "";
         
-        if(isHTTPSRequest){
-            httpsProtocols = System.getProperty("https.protocols") != null ? System.getProperty("https.protocols") : "";
-            //force http request to use TLSv1 protocol
-            System.setProperty("https.protocols", "TLSv1");
-        }
         try {
+            if (isHTTPSRequest) {
+                if(ignoreSSL){
+                    RESTServiceUtils.ignoreSSL();
+                }else{
+                    //force http request to use TLSv1 protocol
+                    System.setProperty("https.protocols", "TLSv1");
+                }
+            }
             encryptedBase64Response = RESTServiceUtils.RESTRequest(requestUrl, httpMethod, "application/x-www-form-urlencoded;charset=UTF-8", requestParameters);
-        } catch (Exception ex) {
-            if (!isHTTPSRequest || !tryWithoutSSLOnHTTPError) {
-                return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error en el consumo de la petición - " + ex.toString());
-            }
-            System.out.println("Unable to request with secure certificate: " + ex.toString());
-            System.out.println("Trying to load without SSL");
-            RESTServiceUtils.ignoreSSL();
-            try {
-                encryptedBase64Response = RESTServiceUtils.RESTRequest(requestUrl, httpMethod, "application/x-www-form-urlencoded;charset=UTF-8", requestParameters);
-            } catch (Exception exceptionignoringSSL) {
-                System.setProperty("https.protocols", httpsProtocols);
-                return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error en el consumo de la petición - " + exceptionignoringSSL.toString());
-            }
-        }
-        if(isHTTPSRequest){
             System.setProperty("https.protocols", httpsProtocols);
+        } catch (Exception ex) {
+            System.setProperty("https.protocols", httpsProtocols);
+            return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error en el consumo de la petición - " + ex.toString());
         }
 
         //AES decrypt response
