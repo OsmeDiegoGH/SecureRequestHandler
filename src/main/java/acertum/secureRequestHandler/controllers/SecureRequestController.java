@@ -3,6 +3,7 @@ package acertum.secureRequestHandler.controllers;
 import acertum.secureRequestHandler.entities.RequestResponse;
 import acertum.secureRequestHandler.utils.EncryptionUtils;
 import acertum.secureRequestHandler.utils.RESTServiceUtils;
+import acertum.secureRequestHandler.utils.RSACustom;
 import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
@@ -14,17 +15,21 @@ import java.util.Map;
 public class SecureRequestController {
    
     private final EncryptionController encryptionController;
-    private PublicKey RSA_PUBLIC_KEY;
-    private PrivateKey RSA_PRIVATE_KEY;
+    private final RSACustom rsaCustom;
+    private PublicKey RSA_PUBLIC_SERVICE_KEY;
+    private PrivateKey RSA_PRIVATE_CLIENT_KEY;
+    private PublicKey CUSTOM_RSA_PUBLIC_SERVICE_KEY;
+    private PrivateKey CUSTOM_RSA_PRIVATE_CLIENT_KEY;
     
     public SecureRequestController(Class<?> callerClass){
+        com.sun.org.apache.xml.internal.security.Init.init();
         encryptionController = new EncryptionController(callerClass);
+        rsaCustom = new RSACustom(callerClass);
     }
     
-    public void loadKeysFromResources(String RSA_publicKeyPath, String RSA_privateKeyPath) throws NoSuchAlgorithmException, IOException, InvalidKeySpecException{
-        com.sun.org.apache.xml.internal.security.Init.init();
-        RSA_PUBLIC_KEY = encryptionController.loadRSAPublicKeyFromResources(RSA_publicKeyPath);
-        RSA_PRIVATE_KEY = encryptionController.loadRSAPrivateKeyFromResources(RSA_privateKeyPath);
+    public void loadRSAKeysFromResources(String RSA_publicServiceKeyPath, String RSA_privateClientKeyPath) throws NoSuchAlgorithmException, IOException, InvalidKeySpecException{
+        this.RSA_PUBLIC_SERVICE_KEY = this.encryptionController.loadRSAPublicKeyFromResources(RSA_publicServiceKeyPath);
+        this.RSA_PRIVATE_CLIENT_KEY = this.encryptionController.loadRSAPrivateKeyFromResources(RSA_privateClientKeyPath);
     }
      
     public RequestResponse doSecurePOST(String requestUrl, HashMap<String,String> secureParameters){
@@ -51,7 +56,6 @@ public class SecureRequestController {
         return doSecureRequest(requestUrl, "GET", secureParameters, rawParameters, ignoreSSL);
     }  
 
-    
     public RequestResponse doSecureRequest(String requestUrl, String httpMethod, HashMap<String,String> secureParameters, HashMap<String,String> rawParameters, boolean ignoreSSL){
         String base64AESKey;
         try {
@@ -67,12 +71,12 @@ public class SecureRequestController {
                 requestParameters.put(mapEntry.getKey(), encryptionController.AESencrypt(mapEntry.getValue(), base64AESKey));
             }
         } catch (Exception ex) {
-            return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error al encriptar los parámetros de la petición - " + ex.getMessage());
+            return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error al encriptar los parametros de la peticion - " + ex.getMessage());
         }
         
         try {
             //Add RSA encrypt AESkey to request
-            requestParameters.put("transportKey", encryptionController.RSAEncrypt(base64AESKey, RSA_PUBLIC_KEY));
+            requestParameters.put("transportKey", encryptionController.RSAEncrypt(base64AESKey, RSA_PUBLIC_SERVICE_KEY));
         } catch (Exception ex) {
             return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error al encriptar llave dinámica - " + ex.getMessage());
         }
@@ -80,9 +84,85 @@ public class SecureRequestController {
             requestParameters.putAll(rawParameters);
         }
         
+        RequestResponse response = doRequest(requestUrl, httpMethod, "application/x-www-form-urlencoded;charset=UTF-8", requestParameters);
+        if(response.getCode() == RequestResponse.RESPONSE_CODE.ERROR){
+            return response;
+        }
+
+        //AES decrypt response
+        final String decryptedContent;
+        try {
+            String encryptedBase64Response = EncryptionUtils.getInstance().FixBadRequestTransportChar(response.getResult());
+            response.setResult( encryptionController.AESdecrypt(encryptedBase64Response, base64AESKey) );
+        } catch (Exception ex) {
+            response = new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error: " + ex.toString()+ ", al desencriptar la respuesta del servicio --- respuesta plana: " + response.getResult());
+        }
+
+        return response; 
+    }
+    
+    public void loadCustomRSAKeysFromResources(String RSA_publicServiceKeyPath, String RSA_privateClientKeyPath) throws NoSuchAlgorithmException, IOException, InvalidKeySpecException{
+        this.CUSTOM_RSA_PUBLIC_SERVICE_KEY = this.rsaCustom.readPublicKey(RSA_publicServiceKeyPath);
+        this.CUSTOM_RSA_PRIVATE_CLIENT_KEY = this.rsaCustom.readPrivateKey(RSA_privateClientKeyPath);
+    }
+    
+    public RequestResponse doSecureRequestWithCustomRSA(String requestUrl, String httpMethod, HashMap<String,String> secureParameters, HashMap<String,String> rawParameters, boolean ignoreSSL){
+        
+        HashMap<String,String> requestParameters = new HashMap();
+        
+        try {
+            //RSA encrypt parameters
+            for (Map.Entry<String, String> mapEntry : secureParameters.entrySet()) {
+                requestParameters.put(mapEntry.getKey(), this.rsaCustom.encrypt(mapEntry.getValue()));
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error al encriptar los parametros de la peticion - " + ex.getMessage());
+        }
+        
+        if(rawParameters != null){
+            requestParameters.putAll(rawParameters);
+        }
+        
+        RequestResponse response = doRequest(requestUrl, httpMethod, "application/x-www-form-urlencoded;charset=UTF-8", requestParameters);
+        if(response.getCode() == RequestResponse.RESPONSE_CODE.ERROR){
+            return response;
+        }
+        
+        try {
+            String encryptedBase64Response = EncryptionUtils.getInstance().FixBadRequestTransportChar(response.getResult());
+            response.setResult( this.rsaCustom.decrypt(encryptedBase64Response) );
+        } catch (Exception ex) {
+            response = new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error: " + ex.toString()+ ", al desencriptar la respuesta del servicio --- respuesta plana: " + response.getResult());
+        }
+
+        return response; 
+    }
+    
+    public RequestResponse doPOST(String requestUrl, HashMap<String,String> parameters){
+        return doRequest(requestUrl, "POST", "application/x-www-form-urlencoded;charset=UTF-8", parameters);
+    } 
+    
+    public RequestResponse doPOST(String requestUrl, HashMap<String,String> parameters, boolean ignoreSSL){
+        return doRequest(requestUrl, "POST", "application/x-www-form-urlencoded;charset=UTF-8", parameters, ignoreSSL);
+    } 
+
+    public RequestResponse doGET(String requestUrl, HashMap<String,String> parameters){
+        return doRequest(requestUrl, "POST", "application/x-www-form-urlencoded;charset=UTF-8", parameters);
+    } 
+    
+    public RequestResponse doGET(String requestUrl, HashMap<String,String> parameters, boolean ignoreSSL){
+        return doRequest(requestUrl, "POST", "application/x-www-form-urlencoded;charset=UTF-8", parameters, ignoreSSL);
+    } 
+    
+    public RequestResponse doRequest(String requestUrl, String httpMethod, String contentType, HashMap<String,String> parameters){
+        return doRequest(requestUrl, httpMethod, contentType, parameters, false);
+    }
+    
+    public RequestResponse doRequest(String requestUrl, String httpMethod, String contentType, HashMap<String,String> parameters, boolean ignoreSSL){
         //do request
         boolean isHTTPSRequest = requestUrl.startsWith("https://");
-        String encryptedBase64Response;
+        RequestResponse response;
         String httpsProtocols = System.getProperty("https.protocols") != null ? System.getProperty("https.protocols") : "";
         
         try {
@@ -94,38 +174,14 @@ public class SecureRequestController {
                     System.setProperty("https.protocols", "TLSv1");
                 }
             }
-            encryptedBase64Response = RESTServiceUtils.RESTRequest(requestUrl, httpMethod, "application/x-www-form-urlencoded;charset=UTF-8", requestParameters);
-            System.setProperty("https.protocols", httpsProtocols);
+            String plainResponse = RESTServiceUtils.RESTRequest(requestUrl, httpMethod, "application/x-www-form-urlencoded;charset=UTF-8", parameters);
+            response = new RequestResponse(RequestResponse.RESPONSE_CODE.SUCCESS, plainResponse);
         } catch (Exception ex) {
-            System.setProperty("https.protocols", httpsProtocols);
-            return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error en el consumo de la petición - " + ex.toString());
+            response = new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error en el consumo de la peticion - " + ex.toString());
         }
-
-        //AES decrypt response
-        final String decryptedContent;
-        try {
-            decryptedContent = encryptionController.AESdecrypt(EncryptionUtils.getInstance().FixBadRequestTransportChar(encryptedBase64Response), base64AESKey);
-        } catch (Exception ex) {
-            return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error: " + ex.toString()+ ", al desencriptar la respuesta del servicio --- respuesta: " + encryptedBase64Response);
-        }
-
-        return new RequestResponse(RequestResponse.RESPONSE_CODE.SUCCESS, decryptedContent); 
-    }
-    
-    public RequestResponse doPOST(String requestUrl, HashMap<String,String> parameters){
-        return doRequest(requestUrl, "POST", "application/x-www-form-urlencoded;charset=UTF-8", parameters);
-    } 
-
-    public RequestResponse doGET(String requestUrl, HashMap<String,String> parameters){
-        return doRequest(requestUrl, "POST", "application/x-www-form-urlencoded;charset=UTF-8", parameters);
-    } 
-    
-    public RequestResponse doRequest(String requestUrl, String httpMethod, String contentType, HashMap<String,String> parameters){
-        try {
-            String response = RESTServiceUtils.RESTRequest(requestUrl, httpMethod, contentType, parameters);
-            return new RequestResponse(RequestResponse.RESPONSE_CODE.SUCCESS, response);            
-        } catch (Exception ex) {
-            return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, ex.toString());
-        }
+        
+        System.setProperty("https.protocols", httpsProtocols);
+        
+        return response;
     }    
 }
