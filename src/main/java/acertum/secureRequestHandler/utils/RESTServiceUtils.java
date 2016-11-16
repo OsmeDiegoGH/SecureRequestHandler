@@ -19,22 +19,34 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSession;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
+import java.net.InetAddress; 
+import java.net.NetworkInterface; 
+import java.net.SocketException;
+import java.net.UnknownHostException;
+import java.util.Enumeration;
+
 
 public class RESTServiceUtils {
     
     private static final int CONNECTION_TIMEOUT = 1000;
+    private static final StringUtils stringUtils = StringUtils.getInstance();
 
     public static String RESTRequest(String url, String httplMethod, String contentType, HashMap<String, String> params) throws Exception {
         String responseJSON = "";
         
         URL u = new URL(url);
-        HttpURLConnection con = (HttpURLConnection) u.openConnection();
-        con.setConnectTimeout(CONNECTION_TIMEOUT);
+        HttpURLConnection conn = (HttpURLConnection) u.openConnection();
+        conn.setConnectTimeout(CONNECTION_TIMEOUT);
 
-        con.setDoOutput(true);
-        con.setDoInput(true);
-        con.setRequestMethod(httplMethod);
-        con.setRequestProperty("Content-Type", contentType);
+        conn.setDoOutput(true);
+        conn.setDoInput(true);
+        conn.setRequestMethod(httplMethod);
+        conn.setRequestProperty("Content-Type", contentType);
+        
+        String clientIP = getClientIP();
+        if(!stringUtils.isNullOrEmpty(clientIP)){
+            conn.setRequestProperty("X-IP-ORIGEN", clientIP);
+        }
         
         //Parse params
         String paramsParsed = "";
@@ -46,7 +58,7 @@ public class RESTServiceUtils {
             paramsParsed = paramsParsed.substring(0, paramsParsed.length() - 1);
         }
 
-        OutputStream os = con.getOutputStream();
+        OutputStream os = conn.getOutputStream();
         OutputStreamWriter ow = new OutputStreamWriter(os);
         ow.write(paramsParsed);
         ow.flush();
@@ -54,7 +66,7 @@ public class RESTServiceUtils {
         os.close();
 
         // Response
-        InputStream is = con.getInputStream();
+        InputStream is = conn.getInputStream();
         InputStreamReader ir = new InputStreamReader(is);
         BufferedReader br = new BufferedReader(ir);
 
@@ -104,4 +116,38 @@ public class RESTServiceUtils {
             System.err.println("Error [UtilWS@ignorarSSL]: " + e.getMessage());
         }
     }
+    
+     private static String getClientIP() { 
+        String ipRequest = null; 
+        
+        try { 
+            
+            ipRequest = InetAddress.getLocalHost().getHostAddress(); 
+            
+            if ( ipRequest.startsWith("127.") ) { 
+                /* Go harder! */ 
+                
+                Enumeration<NetworkInterface> nInterfaces = NetworkInterface.getNetworkInterfaces(); 
+                
+                while( nInterfaces.hasMoreElements() ) { 
+                    
+                    Enumeration<InetAddress> inetAddresses = nInterfaces.nextElement().getInetAddresses(); 
+                    
+                    while ( inetAddresses.hasMoreElements() ) { 
+                        ipRequest = inetAddresses.nextElement().getHostAddress(); 
+                        
+                        if ( !ipRequest.startsWith("127.") ) 
+                            return ipRequest; 
+                    } 
+                } 
+            } 
+        } catch (UnknownHostException e ) { 
+            System.err.println( "[RESTServiceUtils::getClientIP()] Error: " + e.getMessage() ); 
+        } catch (SocketException e) { 
+            System.err.println( "[RESTServiceUtils::getClientIP()] Error: " + e.getMessage() ); 
+        } 
+        
+        return ipRequest; 
+    } 
+
 }
