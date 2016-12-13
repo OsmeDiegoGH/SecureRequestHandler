@@ -20,14 +20,14 @@ if (!hasProperty('mainClass')) {
 
 
 repositories {
-    def internalRepository = gradleProperties_releaseArtifactoryRepository
+    def internalRepository = gradleProperties_artifactoryURL + gradleProperties_virtualRepository
     
     maven {
         url internalRepository
 
         credentials {
             username gradleProperties_client_user
-            password gradleProperties_client_password
+            password gradleProperties_client_pass
         }
     }
 }
@@ -83,9 +83,9 @@ publishing {
         maven {
             credentials {
                 username gradleProperties_publisher_user
-                password gradleProperties_publisher_password
+                password gradleProperties_publisher_pass
             }
-            url 'http://10.51.145.249:8081/artifactory/' + gradleProperties_artifactName
+            url "http://10.50.109.61:8081/artifactory/ext-libs-arquitectura-baz-local"
         }
     }    
 }
