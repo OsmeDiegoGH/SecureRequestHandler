@@ -11,6 +11,7 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.IvParameterSpec;
 
+
 public class EncryptionUtils {
     
     private static final EncryptionUtils INSTANCE = new EncryptionUtils();
@@ -20,7 +21,7 @@ public class EncryptionUtils {
     public static EncryptionUtils getInstance(){
         return INSTANCE;
     }
-    
+ 
     public byte[] encrypt(byte[] content, Key key,  String encryptType, boolean useVector) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, UnsupportedEncodingException, IllegalBlockSizeException, InvalidAlgorithmParameterException, BadPaddingException {
         final Cipher cipher = Cipher.getInstance(encryptType);
         if(useVector){
@@ -42,25 +43,4 @@ public class EncryptionUtils {
         }
         return decipher.doFinal(content);
     }   
-    
-    public String FixBadRequestTransportChar(String base64Content){
-        return base64Content.replace(' ', '+');
-    }
-       
-    /*public KeyPair generateKeyPair(String keyAlgorithm, int keySize) throws NoSuchAlgorithmException{
-        final KeyPairGenerator keyGen = KeyPairGenerator.getInstance(keyAlgorithm);
-        keyGen.initialize(keySize);
-        return keyGen.generateKeyPair();
-    }
-    
-    public PublicKey bytesToPublicKey(byte[] keyBytes, String keyAlgorithm) throws NoSuchAlgorithmException, InvalidKeySpecException{
-        X509EncodedKeySpec keySpec = new X509EncodedKeySpec(keyBytes);
-        return KeyFactory.getInstance(keyAlgorithm).generatePublic( keySpec );
-    }
-    
-    public PrivateKey bytesToPrivateKey(byte[] keyBytes, String keyAlgorithm) throws NoSuchAlgorithmException, InvalidKeySpecException{
-        PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(keyBytes);
-        return KeyFactory.getInstance(keyAlgorithm).generatePrivate( keySpec );
-    }*/
 }
-
