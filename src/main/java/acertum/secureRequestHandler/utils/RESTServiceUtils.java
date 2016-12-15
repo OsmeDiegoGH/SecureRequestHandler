@@ -149,5 +149,8 @@ public class RESTServiceUtils {
         
         return ipRequest; 
     } 
-
+     
+    public String FixBadRequestTransportChar(String base64Content){
+        return base64Content.replace(' ', '+');
+    } 
 }
