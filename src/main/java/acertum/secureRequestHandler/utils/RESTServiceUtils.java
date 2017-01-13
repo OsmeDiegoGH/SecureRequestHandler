@@ -1,13 +1,13 @@
 package acertum.secureRequestHandler.utils;
 
 import java.io.BufferedReader;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.X509Certificate;
@@ -19,111 +19,69 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSession;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
+import java.net.InetAddress; 
+import java.net.NetworkInterface; 
+import java.net.SocketException;
+import java.net.UnknownHostException;
+import java.util.Enumeration;
+
 
 public class RESTServiceUtils {
+    
+    private static final int CONNECTION_TIMEOUT = 1000;
+    private static final StringUtils stringUtils = StringUtils.getInstance();
 
-    public static String RESTRequest(String url, String httplMethod, HashMap<String, String> params) {
+    public static String RESTRequest(String url, String httplMethod, String contentType, HashMap<String, String> params) throws Exception {
         String responseJSON = "";
+        
+        URL u = new URL(url);
+        HttpURLConnection conn = (HttpURLConnection) u.openConnection();
+        conn.setConnectTimeout(CONNECTION_TIMEOUT);
 
-        try {
-            // Init
-            if (url.startsWith("https://")) {
-                ignoreSSL();
-            }
-
-            URL u = new URL(url);
-            HttpURLConnection con = (HttpURLConnection) u.openConnection();
-
-            con.setDoOutput(true);
-            con.setDoInput(true);
-            con.setRequestMethod(httplMethod);
-            con.setRequestProperty("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8");
-
-            //Parse params
-            String paramsParsed = "";
-            for (Entry<String, String> tmp : params.entrySet()) {
-                paramsParsed += tmp.getKey() + "=" + tmp.getValue() + "&";
-            }
-
-            if (paramsParsed.endsWith("&")) {
-                paramsParsed = paramsParsed.substring(0, paramsParsed.length() - 1);
-            }
-
-            OutputStream os = con.getOutputStream();
-            OutputStreamWriter ow = new OutputStreamWriter(os);
-            ow.write(paramsParsed);
-            ow.flush();
-            ow.close();
-            os.close();
-
-            // Response
-            InputStream is = con.getInputStream();
-            InputStreamReader ir = new InputStreamReader(is);
-            BufferedReader br = new BufferedReader(ir);
-
-            String jsonPart;
-            while ((jsonPart = br.readLine()) != null) {
-                responseJSON = responseJSON + jsonPart;
-            }
-
-            ir.close();
-            is.close();
-
-        } catch (IOException e) {
-            e.printStackTrace();
-            
+        conn.setDoOutput(true);
+        conn.setDoInput(true);
+        conn.setRequestMethod(httplMethod);
+        conn.setRequestProperty("Content-Type", contentType);
+        
+        String clientIP = getClientIP();
+        if(!stringUtils.isNullOrEmpty(clientIP)){
+            conn.setRequestProperty("X-IP-ORIGEN", clientIP);
         }
+        
+        //Parse params
+        String paramsParsed = "";
+        for (Entry<String, String> tmp : params.entrySet()) {
+            paramsParsed += tmp.getKey() + "=" + URLEncoder.encode(tmp.getValue(), "UTF-8") + "&";
+        }
+
+        if (paramsParsed.endsWith("&")) {
+            paramsParsed = paramsParsed.substring(0, paramsParsed.length() - 1);
+        }
+
+        OutputStream os = conn.getOutputStream();
+        OutputStreamWriter ow = new OutputStreamWriter(os);
+        ow.write(paramsParsed);
+        ow.flush();
+        ow.close();
+        os.close();
+
+        // Response
+        InputStream is = conn.getInputStream();
+        InputStreamReader ir = new InputStreamReader(is);
+        BufferedReader br = new BufferedReader(ir);
+
+        String jsonPart;
+        while ((jsonPart = br.readLine()) != null) {
+            responseJSON = responseJSON + jsonPart;
+        }
+
+        ir.close();
+        is.close();
 
         return responseJSON;
     }
 
-    public static String getREST(String urlServicio) {
-
-        String respuestaServicio;
-
-        try {
-            if (urlServicio.startsWith("https://")) {
-                ignoreSSL();
-            }
-
-            URL url;
-            HttpURLConnection conn;
-            url = new URL(urlServicio);
-
-            conn = (HttpURLConnection) url.openConnection();
-
-            //Genero la conexión
-            conn.setDoOutput(true);
-            conn.setDoInput(true);
-            //Método de consumo
-            conn.setRequestMethod("GET");
-            //Encabezado para el envío de parámetros
-            conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8");
-            conn.connect();
-
-            InputStreamReader reader = new InputStreamReader(conn.getInputStream());
-            BufferedReader br = new BufferedReader(reader);
-            StringBuilder input = new StringBuilder();
-            String aux;
-
-            aux = br.readLine();
-            while (aux != null) {
-                input.append(aux);
-//                input = input + aux;
-                aux = br.readLine();
-            }
-
-            respuestaServicio = input.toString();
-
-        } catch (IOException e) {
-            System.out.println("Error al consumir servicio de BD: " + e.getMessage());
-            respuestaServicio = "Error al consumir el servicio de BD: " + e.getMessage();
-        }
-
-        return respuestaServicio;
-    }
-
-    private static void ignoreSSL() {
+    public static void ignoreSSL() {
         try {
             TrustManager[] trustAllCerts = new TrustManager[]{new X509TrustManager() {
                 @Override
@@ -158,12 +116,41 @@ public class RESTServiceUtils {
             System.err.println("Error [UtilWS@ignorarSSL]: " + e.getMessage());
         }
     }
-
-    public static String getREST(String url, HashMap<String, String> params) {
-        return RESTRequest(url, "GET", params);
-    }
-
-    public static String postREST(String url, HashMap<String, String> params) {
-        return RESTRequest(url, "POST", params);
-    }
+    
+     private static String getClientIP() { 
+        String ipRequest = null; 
+        
+        try { 
+            
+            ipRequest = InetAddress.getLocalHost().getHostAddress(); 
+            
+            if ( ipRequest.startsWith("127.") ) { 
+                /* Go harder! */ 
+                
+                Enumeration<NetworkInterface> nInterfaces = NetworkInterface.getNetworkInterfaces(); 
+                
+                while( nInterfaces.hasMoreElements() ) { 
+                    
+                    Enumeration<InetAddress> inetAddresses = nInterfaces.nextElement().getInetAddresses(); 
+                    
+                    while ( inetAddresses.hasMoreElements() ) { 
+                        ipRequest = inetAddresses.nextElement().getHostAddress(); 
+                        
+                        if ( !ipRequest.startsWith("127.") ) 
+                            return ipRequest; 
+                    } 
+                } 
+            } 
+        } catch (UnknownHostException e ) { 
+            System.err.println( "[RESTServiceUtils::getClientIP()] Error: " + e.getMessage() ); 
+        } catch (SocketException e) { 
+            System.err.println( "[RESTServiceUtils::getClientIP()] Error: " + e.getMessage() ); 
+        } 
+        
+        return ipRequest; 
+    } 
+     
+    public String FixBadRequestTransportChar(String base64Content){
+        return base64Content.replace(' ', '+');
+    } 
 }

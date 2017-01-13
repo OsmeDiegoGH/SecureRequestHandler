@@ -1,93 +1,131 @@
 package acertum.secureRequestHandler.controllers;
 
-import acertum.secureRequestHandler.utils.JSONUtils;
+import acertum.secureRequestHandler.entities.RequestResponse;
+import acertum.secureRequestHandler.handlers.DefaultEncryptorHandler;
 import acertum.secureRequestHandler.utils.RESTServiceUtils;
-import com.sun.org.apache.xml.internal.security.exceptions.Base64DecodingException;
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.security.InvalidAlgorithmParameterException;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
-import java.security.spec.InvalidKeySpecException;
-import java.util.Arrays;
+import acertum.secureRequestHandler.handlers.IRequestHandler;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.crypto.BadPaddingException;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
 
-public class SecureRequestController {
+public class SecureRequestController<T extends IRequestHandler>{
     
-    private final JSONUtils jsonutils;
-    public enum RESPONSE_CODE{
-        SUCCESS,
-        ERROR
+    private final T encryptorHandler;
+    public boolean debug = false;
+    
+    public SecureRequestController(Class<?> callerClass){
+        this((T) new DefaultEncryptorHandler(callerClass));
+        com.sun.org.apache.xml.internal.security.Init.init();
+    }
+  
+    public SecureRequestController(T encryptorHandler){
+        this.encryptorHandler = encryptorHandler;
+    }
+     
+    public T getHandler(){
+        return this.encryptorHandler;
     }
     
-    public class Response{
-        private RESPONSE_CODE code;
-        private String response;
+    public RequestResponse doSecurePOST(String requestUrl, String contentType, HashMap<String,String> secureParameters){
+        return doSecureRequest(requestUrl, "POST", contentType, secureParameters, new HashMap<String, String>(), false);
+    } 
+    
+    public RequestResponse doSecurePOST(String requestUrl, String contentType, HashMap<String,String> secureParameters, boolean ignoreSSL){
+        return doSecureRequest(requestUrl, "POST", contentType, secureParameters, new HashMap<String, String>(), ignoreSSL);
+    } 
+    
+    public RequestResponse doSecurePOST(String requestUrl, String contentType, HashMap<String,String> secureParameters, HashMap<String,String> rawParameters){
+        return doSecureRequest(requestUrl, "POST", contentType, secureParameters, rawParameters, false);
+    } 
+    
+    public RequestResponse doSecurePOST(String requestUrl, String contentType, HashMap<String,String> secureParameters, HashMap<String,String> rawParameters, boolean ignoreSSL){
+        return doSecureRequest(requestUrl, "POST", contentType, secureParameters, rawParameters, ignoreSSL);
+    } 
+
+    public RequestResponse doSecureGET(String requestUrl, String contentType, HashMap<String,String> secureParameters){
+        return doSecureRequest(requestUrl, "GET", contentType, secureParameters, new HashMap<String, String>(), false);
+    } 
+    
+    public RequestResponse doSecureGET(String requestUrl, String contentType, HashMap<String,String> secureParameters, boolean ignoreSSL){
+        return doSecureRequest(requestUrl, "GET", contentType, secureParameters, new HashMap<String, String>(), ignoreSSL);
+    } 
+    
+    public RequestResponse doSecureGET(String requestUrl, String contentType, HashMap<String,String> secureParameters, HashMap<String,String> rawParameters){
+        return doSecureRequest(requestUrl, "GET", contentType, secureParameters, rawParameters, false);
+    }  
+    
+    public RequestResponse doSecureGET(String requestUrl, String contentType, HashMap<String,String> secureParameters, HashMap<String,String> rawParameters, boolean ignoreSSL){
+        return doSecureRequest(requestUrl, "GET", contentType, secureParameters, rawParameters, ignoreSSL);
+    }  
+
+    public RequestResponse doSecureRequest(String requestUrl, String httpMethod, String contentType, HashMap<String,String> secureParameters, HashMap<String,String> rawParameters, boolean ignoreSSL){
+        try {
+            this.encryptorHandler.prepare(requestUrl, httpMethod, contentType, secureParameters, rawParameters);
+        } catch (Exception ex) {
+            if(debug){
+                ex.printStackTrace();
+            }
+            return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error preparing request: " + ex.getMessage());
+        }
+                
+        HashMap requestParameters = new HashMap<String,String>();
+        requestParameters.putAll(rawParameters);
         
-        public Response(RESPONSE_CODE code, String response){
-            this.code = code;
-            this.response = response;
+        try {
+            for (Map.Entry<String, String> mapEntry : secureParameters.entrySet()) {
+                requestParameters.put(mapEntry.getKey(), this.encryptorHandler.encrypt((String)mapEntry.getValue()));
+            } 
+        } catch (Exception ex) {
+            if(debug){
+                ex.printStackTrace();
+            }
+            return new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error encrypting parameters: " + ex.getMessage());
         }
-
-        public RESPONSE_CODE getCode() {
-            return code;
-        }
-
-        public void setCode(RESPONSE_CODE code) {
-            this.code = code;
-        }
-
-        public String getResponse() {
+        
+        RequestResponse response = doRequest(requestUrl, httpMethod, contentType, requestParameters, ignoreSSL);
+        if(response.getCode() == RequestResponse.RESPONSE_CODE.ERROR){
             return response;
         }
-
-        public void setResponse(String response) {
-            this.response = response;
+        
+        try {
+            response.setResult( this.encryptorHandler.decrypt(response.getResult()) );
+        } catch (Exception ex) {
+            if(debug){
+                ex.printStackTrace();
+            }
+            response = new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error: " + ex.toString()+ ", al desencriptar la respuesta del servicio --- respuesta plana: " + response.getResult());
+        }
+    
+        return response; 
+    }
+    
+    public RequestResponse doRequest(String requestUrl, String httpMethod, String contentType, HashMap<String,String> parameters, boolean ignoreSSL){
+        //do request
+        boolean isHTTPSRequest = requestUrl.startsWith("https://");
+        RequestResponse response;
+        String httpsProtocols = System.getProperty("https.protocols") != null ? System.getProperty("https.protocols") : "";
+        
+        try {
+            if (isHTTPSRequest) {
+                if(ignoreSSL){
+                    RESTServiceUtils.ignoreSSL();
+                }else{
+                    //force http request to use TLSv1 protocol
+                    System.setProperty("https.protocols", "TLSv1");
+                }
+            }
+            String plainResponse = RESTServiceUtils.RESTRequest(requestUrl, httpMethod, contentType, parameters);
+            response = new RequestResponse(RequestResponse.RESPONSE_CODE.SUCCESS, plainResponse);
+        } catch (Exception ex) {
+            if(debug){
+                ex.printStackTrace();
+            }
+            response = new RequestResponse(RequestResponse.RESPONSE_CODE.ERROR, "Error en el consumo de la peticion - " + ex.toString());
         }
         
-    }
-    
-    public SecureRequestController(){
-        jsonutils = JSONUtils.getInstance(); 
-    }
- 
-    public Response doPOST(String requestUrl, HashMap<String,String> parameters){
-        return doRequest(requestUrl, "POST", parameters);
-    }   
-
-    public Response doGET(String requestUrl, HashMap<String,String> parameters){
-        return doRequest(requestUrl, "GET", parameters);
-    }     
-    
-    public Response doRequest(String requestUrl, String httpMethod, HashMap<String,String> parameters){
-        try {
-            EncryptionController encryptionController = new EncryptionController();
-            
-            HashMap<String,String> encryptedParameters = new HashMap<>();
-            //AES encrypt parameters
-            for (Map.Entry<String, String> mapEntry : parameters.entrySet()) {
-                encryptedParameters.put(mapEntry.getKey(), encryptionController.AESencrypt(mapEntry.getValue()));
-            }
-            //Add RSA encrypt AESkey to request
-            String base64AESKey = encryptionController.GetAESKeyAsBase64();
-            encryptedParameters.put("transportKey", encryptionController.RSAencrypt(base64AESKey));
-            
-            //do POST request
-            String encryptedBase64Response = RESTServiceUtils.RESTRequest(requestUrl, httpMethod, encryptedParameters);
-            
-            //AES decrypt response
-            final String decryptedContent = encryptionController.AESdecrypt(encryptedBase64Response);
-
-            return new Response(RESPONSE_CODE.SUCCESS, decryptedContent);            
-        } catch (NoSuchAlgorithmException | IOException | InvalidKeySpecException | NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException | InvalidAlgorithmParameterException | Base64DecodingException ex) {
-            return new Response(RESPONSE_CODE.ERROR, Arrays.toString(ex.getStackTrace()));
-        }
-    }
-    
+        System.setProperty("https.protocols", httpsProtocols);
+        
+        return response;
+    }  
 }

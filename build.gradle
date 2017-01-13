@@ -1,6 +1,7 @@
 apply plugin: 'java'
+apply plugin: 'maven-publish'
 
-sourceCompatibility = gradleProperties_compileJavaVersion
+sourceCompatibility = gradleProperties_sourceCompatibilityJAVAVersion
 [compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
 
 // NetBeans will automatically add "run" and "debug" tasks relying on the
@@ -10,34 +11,82 @@ sourceCompatibility = gradleProperties_compileJavaVersion
 // Note however, that you may define your own "run" and "debug" task if you
 // prefer. In this case NetBeans will not add these tasks but you may rely on
 // your own implementation.
+
+version = gradleProperties_projectVersion
+
 if (!hasProperty('mainClass')) {
     ext.mainClass = ''
 }
 
+
 repositories {
-    def internalRepository = gradleProperties_releaseArtifactoryRepository
+    def internalRepository = gradleProperties_artifactoryURL + gradleProperties_virtualRepository
     
     maven {
         url internalRepository
 
         credentials {
-            username gradleProperties_user
-            password gradleProperties_password
+            username gradleProperties_client_user
+            password gradleProperties_client_pass
         }
     }
 }
 
 dependencies {
             
-    runtime "com.google.code.gson:gson:$gradleProperties_gsonVersion",
+    runtime "com.google.code.gson:gson:$gradleProperties_gsonVersion",    
             "log4j:log4j:$gradleProperties_log4jVersion",
-            "com.google.zxing:core:3.2.1",
-            "com.sun.xml.security:xml-security-impl:1.0"
+            "com.sun.xml.security:xml-security-impl:1.0",
+            "org.json:json:20140107"
     
     
     compile "com.google.code.gson:gson:$gradleProperties_gsonVersion",    
             "log4j:log4j:$gradleProperties_log4jVersion",
-            "com.google.zxing:core:3.2.1",
             "com.sun.xml.security:xml-security-impl:1.0",
             "org.json:json:20140107"
 }
+
+
+jar {
+    manifest {
+        attributes 'Implementation-Title': rootProject.name, 'Class-Path': '.'
+    }
+    from {
+        configurations.runtime.collect {
+            it.isDirectory() ? it : zipTree(it)
+        }
+    }
+}
+
+task overrideCompileJAVAVersion (type: Jar)  {
+    def compilador = gradleProperties_JAVAHome + '\\bin\\javac'
+    println 'compiled with ' + compilador
+    compileJava {
+        options.compilerArgs << '-XDignore.symbol.file'
+        options.fork = true
+        options.forkOptions.executable = compilador
+    }
+}
+
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            groupId gradleProperties_artifactGroup
+            artifactId rootProject.name
+            version gradleProperties_projectVersion
+            
+            from components.java
+        }
+    }
+    repositories {
+        maven {
+            credentials {
+                username gradleProperties_publisher_user
+                password gradleProperties_publisher_pass
+            }
+            url "http://10.50.109.61:8081/artifactory/ext-libs-arquitectura-baz-local"
+        }
+    }    
+}
+
